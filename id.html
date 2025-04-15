@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hanging ID Card</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #ecf0f1;
+    }
+
+    #card {
+      width: 180px;
+      height: 280px;
+      background: rgb(44, 36, 81);
+      border-radius: 15px;
+      box-shadow: 0 15px 25px rgba(0,0,0,0.25);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      font-family: "Segoe UI", sans-serif;
+      text-align: center;
+      padding: 15px 10px;
+      position: absolute;
+      box-sizing: border-box;
+    }
+
+    .photo {
+      width: 140px;
+      height: 140px;
+      background: #932828;
+      border-radius: 50%;
+      margin-top: 10px;
+      margin-bottom: 20px;
+      background-image: url('https://via.placeholder.com/120');
+      background-size: cover;
+      background-position: center;
+    }
+
+    .name {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 2px;
+      margin-top: 5px;
+      color: #ffffff;
+    }
+
+    .role {
+      font-size: 14px;
+      color: #8f8f8f;
+      margin-bottom: 15px;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
+</head>
+<body>
+
+<div id="card">
+  <div class="photo"></div>
+  <div class="name">Ashwini Kumar</div>
+  <div class="role">Software Developer</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script>
+const { Engine, Render, Runner, Bodies, World, Constraint, Mouse, MouseConstraint } = Matter;
+
+const engine = Engine.create();
+const world = engine.world;
+
+const width = window.innerWidth;
+const height = window.innerHeight;
+
+// Create Matter.js renderer but hide its visuals
+const render = Render.create({
+  element: document.body,
+  engine,
+  options: {
+    width,
+    height,
+    wireframes: false,
+    background: 'transparent',
+    showAngleIndicator: false,
+    showCollisions: false,
+    showVelocity: false
+  }
+});
+
+// Make Matter.js canvas slightly transparent
+render.canvas.style.opacity = '0.009';
+
+// Create canvas for rope rendering
+const ropeCanvas = document.createElement('canvas');
+ropeCanvas.style.position = 'absolute';
+ropeCanvas.style.top = '0';
+ropeCanvas.style.left = '0';
+ropeCanvas.style.pointerEvents = 'none';
+ropeCanvas.style.zIndex = '1'; // Place rope canvas above Matter.js canvas
+document.body.appendChild(ropeCanvas);
+const ctx = ropeCanvas.getContext('2d');
+
+function resizeCanvas() {
+  ropeCanvas.width = width;
+  ropeCanvas.height = height;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+Render.run(render);
+const runner = Runner.create();
+Runner.run(runner, engine);
+
+const cardWidth = 180;
+const cardHeight = 280;
+const card = Bodies.rectangle(width / 2, height / 4, cardWidth, cardHeight, {
+  restitution: 0.9,
+  frictionAir: 0.01
+});
+
+World.add(world, card);
+
+// Rope point at top center
+const ropeLength = height / 3;
+const topPoint = { x: width * 3/4, y: 0 };
+
+const rope = Constraint.create({
+  pointA: topPoint,
+  bodyB: card,
+  pointB: { x: 0, y: -cardHeight / 2 },
+  stiffness: 0.95,
+  length: ropeLength
+});
+
+World.add(world, rope);
+
+// Sync DOM card with physics body and draw rope
+const domCard = document.getElementById('card');
+(function sync() {
+  domCard.style.left = `${card.position.x - cardWidth / 2}px`;
+  domCard.style.top = `${card.position.y - cardHeight / 2}px`;
+  domCard.style.transform = `rotate(${card.angle}rad)`;
+
+  // Draw curved rope
+  ctx.clearRect(0, 0, width, height);
+  
+  // Calculate rotated top-center of the card
+  const angle = card.angle;
+  const offsetX = 0;
+  const offsetY = -cardHeight / 2;
+
+  const ropeEnd = {
+    x: card.position.x + offsetX * Math.cos(angle) - offsetY * Math.sin(angle),
+    y: card.position.y + offsetX * Math.sin(angle) + offsetY * Math.cos(angle)
+  };
+
+  // Calculate Bezier control point for curve
+  const controlPointX = (topPoint.x + ropeEnd.x) / 2;
+  const controlPointY = (topPoint.y + ropeEnd.y) / 2 + 30;
+
+  // Draw rope (Bezier curve)
+  ctx.beginPath();
+  ctx.moveTo(topPoint.x, topPoint.y);
+  ctx.quadraticCurveTo(controlPointX, controlPointY, ropeEnd.x, ropeEnd.y);
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Draw lanyard hook
+  ctx.beginPath();
+  ctx.arc(ropeEnd.x, ropeEnd.y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#555';
+  ctx.fill();
+
+  requestAnimationFrame(sync);
+})();
+
+// Add mouse interaction
+const mouse = Mouse.create(render.canvas);
+const mouseConstraint = MouseConstraint.create(engine, {
+  mouse,
+  constraint: {
+    stiffness: 0.1,
+    render: { visible: false }
+  }
+});
+
+World.add(world, mouseConstraint);
+
+// Add slight wind effect
+setInterval(() => {
+  Matter.Body.applyForce(card, card.position, {
+    x: (Math.random() - 0.5) * 0.2,
+    y: 0
+  });
+}, 60);
+</script>
+</body>
+</html>
